@@ -1,0 +1,17 @@
+type: edu
+custom_name: stage4
+files:
+  - name: test/SimpleBankSystemTest.java
+    visible: false
+  - name: go.sum
+    visible: true
+  - name: go.mod
+    visible: true
+  - name: main.exe
+    visible: true
+  - name: card.s3db
+    visible: true
+  - name: card.s3db-journal
+    visible: true
+  - name: main.go
+    visible: true

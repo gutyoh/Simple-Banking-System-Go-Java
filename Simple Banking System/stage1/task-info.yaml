@@ -1,0 +1,9 @@
+type: edu
+custom_name: stage1
+files:
+  - name: test/SimpleBankSystemTest.java
+    visible: false
+  - name: temp/main.go
+    visible: true
+  - name: main.go
+    visible: true
