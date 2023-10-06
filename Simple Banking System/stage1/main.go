@@ -61,11 +61,16 @@ const (
 	BalanceMsg     = "Balance: %d"
 )
 
-func mainMenu(cards map[string]string) {
+func startBankingSystem(cards map[string]string) {
+	var stop bool
+	for !stop {
+		stop = handleMainMenuOperations(cards)
+	}
+}
+
+func handleMainMenuOperations(cards map[string]string) bool {
 	for {
-		fmt.Println(MainMenuCreateAccount)
-		fmt.Println(MainMenuLogin)
-		fmt.Println(MenuExit)
+		displayMainMenu()
 
 		var choice int
 		fmt.Scanln(&choice)
@@ -76,15 +81,21 @@ func mainMenu(cards map[string]string) {
 		case 2:
 			if login(cards) {
 				fmt.Println("\n" + GoodbyeMsg)
-				return
+				return true
 			}
 		case 0:
 			fmt.Println("\n" + GoodbyeMsg)
-			return
+			return true
 		default:
 			fmt.Println("\n" + WrongOptionMsg)
 		}
 	}
+}
+
+func displayMainMenu() {
+	fmt.Println(MainMenuCreateAccount)
+	fmt.Println(MainMenuLogin)
+	fmt.Println(MenuExit)
 }
 
 func createAccount(cards map[string]string) {
@@ -107,7 +118,7 @@ func generateRandomDigits(n int) string {
 	return fmt.Sprintf("%0*d", n, rand.Intn(maxNumber))
 }
 
-func login(cards map[string]string) bool {
+func promptLoginCredentials() (string, string) {
 	fmt.Println("\n" + CardNumberPrompt)
 	var cardNumber string
 	fmt.Scanln(&cardNumber)
@@ -116,20 +127,24 @@ func login(cards map[string]string) bool {
 	var pin string
 	fmt.Scanln(&pin)
 
+	return cardNumber, pin
+}
+
+func login(cards map[string]string) bool {
+	cardNumber, pin := promptLoginCredentials()
+
 	if storedPin, exists := cards[cardNumber]; exists && storedPin == pin {
 		fmt.Println("\n" + LoggedInMsg)
-		return accountOperationsMenu()
+		return handleAccountOperations()
 	}
 
 	fmt.Println("\n" + WrongCredentialsMsg)
 	return false
 }
 
-func accountOperationsMenu() bool {
+func handleAccountOperations() bool {
 	for {
-		fmt.Println("\n" + AccountOperationsBalance)
-		fmt.Println(AccountOperationsLogout)
-		fmt.Println(MenuExit)
+		displayAccountOperationsMenu()
 
 		var choice int
 		fmt.Scanln(&choice)
@@ -148,7 +163,13 @@ func accountOperationsMenu() bool {
 	}
 }
 
+func displayAccountOperationsMenu() {
+	fmt.Println("\n" + AccountOperationsBalance)
+	fmt.Println(AccountOperationsLogout)
+	fmt.Println(MenuExit)
+}
+
 func main() {
 	cards := make(map[string]string)
-	mainMenu(cards)
+	startBankingSystem(cards)
 }

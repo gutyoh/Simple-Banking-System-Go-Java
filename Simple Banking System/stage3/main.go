@@ -63,7 +63,7 @@ const (
 	BalanceMsg     = "Balance: %d"
 )
 
-func luhnAlgorithm(number string) bool {
+func generateLuhnChecksumDigit(number string) int {
 	sum := 0
 
 	for i, char := range number {
@@ -79,20 +79,7 @@ func luhnAlgorithm(number string) bool {
 		sum += digit
 	}
 
-	return sum%10 == 0
-}
-
-func generateLuhnChecksum(number string) int {
-	checksum := 0
-
-	for i := 0; i <= LuhnAlgorithmMax; i++ {
-		if luhnAlgorithm(number + fmt.Sprintf("%d", i)) {
-			checksum = i
-			break
-		}
-	}
-
-	return checksum
+	return (10 - sum%10) % 10
 }
 
 type Card struct {
@@ -110,7 +97,14 @@ type BankingSystem struct {
 	db *gorm.DB
 }
 
-func (bs *BankingSystem) MainMenu() {
+func (bs *BankingSystem) Start() {
+	var stop bool
+	for !stop {
+		stop = bs.HandleMainMenuOperations()
+	}
+}
+
+func (bs *BankingSystem) HandleMainMenuOperations() bool {
 	for {
 		bs.DisplayMainMenu()
 
@@ -123,11 +117,11 @@ func (bs *BankingSystem) MainMenu() {
 		case 2:
 			if bs.Login() {
 				fmt.Println("\n" + GoodbyeMsg)
-				return
+				return true
 			}
 		case 0:
 			fmt.Println("\n" + GoodbyeMsg)
-			return
+			return true
 		default:
 			fmt.Println("\n" + WrongOptionMsg)
 		}
@@ -156,7 +150,7 @@ func (bs *BankingSystem) CreateAccount() {
 
 func (*BankingSystem) GenerateCardNumberAndPIN() (string, string) {
 	cardBase := CardPrefix + generateRandomDigits(CardBaseDigits)
-	checksum := generateLuhnChecksum(cardBase)
+	checksum := generateLuhnChecksumDigit(cardBase)
 	cardNumber := cardBase + fmt.Sprintf("%d", checksum)
 	pin := generateRandomDigits(PinDigits)
 
@@ -168,7 +162,7 @@ func generateRandomDigits(n int) string {
 	return fmt.Sprintf("%0*d", n, rand.Intn(maxNumber))
 }
 
-func (bs *BankingSystem) Login() bool {
+func (bs *BankingSystem) PromptLoginCredentials() (string, string) {
 	fmt.Println("\n" + CardNumberPrompt)
 	var cardNumber string
 	fmt.Scanln(&cardNumber)
@@ -176,6 +170,12 @@ func (bs *BankingSystem) Login() bool {
 	fmt.Println(PINPrompt)
 	var pin string
 	fmt.Scanln(&pin)
+
+	return cardNumber, pin
+}
+
+func (bs *BankingSystem) Login() bool {
+	cardNumber, pin := bs.PromptLoginCredentials()
 
 	var card Card
 	result := bs.db.Where("number = ? AND pin = ?", cardNumber, pin).First(&card)
@@ -185,12 +185,12 @@ func (bs *BankingSystem) Login() bool {
 	}
 
 	fmt.Println("\n" + LoggedInMsg)
-	exit := bs.AccountOperationsMenu()
+	exit := bs.HandleAccountOperations()
 
 	return exit
 }
 
-func (bs *BankingSystem) AccountOperationsMenu() bool {
+func (bs *BankingSystem) HandleAccountOperations() bool {
 	for {
 		bs.DisplayAccountOperationsMenu()
 
@@ -241,5 +241,5 @@ func main() {
 		log.Fatalf("failed to initialize the Banking System application: %v", err)
 	}
 
-	bs.MainMenu()
+	bs.Start()
 }
