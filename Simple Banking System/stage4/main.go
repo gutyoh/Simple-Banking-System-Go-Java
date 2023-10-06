@@ -113,7 +113,8 @@ func parseArguments() (string, error) {
 }
 
 type Card struct {
-	ID      uint   `gorm:"primaryKey"`
+	gorm.Model
+	// ID      uint   `gorm:"primaryKey"`
 	Number  string `gorm:"unique;not null"`
 	PIN     string
 	Balance int `gorm:"default:0"`
@@ -376,7 +377,12 @@ func (*BankingSystem) PromptForTransferAmount() int {
 }
 
 func (bs *BankingSystem) CloseAccount(card *Card) {
-	result := bs.db.Delete(&card)
+	// Only use `Delete()` directly if your `Card` is not a `gorm.Model` struct!
+	// result := bs.db.Delete(&card)
+
+	// If using a `gorm.Model` struct, please use `Unscoped().Delete()` to ensure
+	// that the `Card` record is completely deleted from the database, otherwise tests will fail.
+	result := bs.db.Unscoped().Delete(&card)
 	if result.Error != nil {
 		fmt.Printf("cannot delete card: %v\n", result.Error)
 		return

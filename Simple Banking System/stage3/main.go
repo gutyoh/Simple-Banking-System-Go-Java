@@ -94,7 +94,8 @@ func parseArguments() (string, error) {
 }
 
 type Card struct {
-	ID      uint   `gorm:"primaryKey"`
+	gorm.Model
+	// ID      uint   `gorm:"primaryKey"`
 	Number  string `gorm:"unique;not null"`
 	PIN     string
 	Balance int `gorm:"default:0"`

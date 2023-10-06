@@ -7,11 +7,7 @@ files:
     visible: true
   - name: go.mod
     visible: true
-  - name: main.exe
+  - name: main.go
     visible: true
   - name: card.s3db
-    visible: true
-  - name: card.s3db-journal
-    visible: true
-  - name: main.go
     visible: true

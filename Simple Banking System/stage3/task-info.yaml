@@ -7,11 +7,7 @@ files:
     visible: true
   - name: go.sum
     visible: true
-  - name: main.exe
+  - name: main.go
     visible: true
   - name: card.s3db
-    visible: true
-  - name: tempDatabase.s3db
-    visible: true
-  - name: main.go
     visible: true
