@@ -63,7 +63,7 @@ func generateLuhnChecksumDigit(number string) int {
 	for i, char := range number {
 		digit := int(char - '0')
 
-		if (len(number)-i)%2 == 0 {
+		if i%2 == 0 {
 			digit *= 2
 			if digit > LuhnAlgorithmMax {
 				digit -= LuhnAlgorithmMax
@@ -73,7 +73,7 @@ func generateLuhnChecksumDigit(number string) int {
 		sum += digit
 	}
 
-	return (10 - sum%10) % 10
+	return (10 - (sum % 10)) % 10
 }
 
 type Card struct {

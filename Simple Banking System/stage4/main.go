@@ -89,7 +89,7 @@ func generateLuhnChecksumDigit(number string) int {
 	for i, char := range number {
 		digit := int(char - '0')
 
-		if (len(number)-i)%2 == 0 {
+		if i%2 == 0 {
 			digit *= 2
 			if digit > LuhnAlgorithmMax {
 				digit -= LuhnAlgorithmMax
@@ -99,7 +99,7 @@ func generateLuhnChecksumDigit(number string) int {
 		sum += digit
 	}
 
-	return (10 - sum%10) % 10
+	return (10 - (sum % 10)) % 10
 }
 
 type Card struct {
@@ -308,7 +308,11 @@ func (*BankingSystem) CanTransferBetweenCards(senderCard *Card, recipientCardNum
 		return false
 	}
 
-	if !luhnAlgorithm(recipientCardNumber) {
+	base := recipientCardNumber[:len(recipientCardNumber)-1]
+	checkDigit := int(recipientCardNumber[len(recipientCardNumber)-1] - '0')
+	calculatedCheckDigit := generateLuhnChecksumDigit(base)
+
+	if checkDigit != calculatedCheckDigit {
 		fmt.Println(TransferToInvalidAccountMsg)
 		return false
 	}
