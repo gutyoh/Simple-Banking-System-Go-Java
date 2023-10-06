@@ -29,6 +29,10 @@ venv/
 # Ignore the .golangci.yml file
 .golangci.yml
 
+# Ignore any Go binaries
+*.exe
+*.exe~
+
 # Ignore the SQLite database file:
 *.sqlite3
 *.s3db

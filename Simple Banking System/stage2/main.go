@@ -77,8 +77,9 @@ func generateLuhnChecksumDigit(number string) int {
 }
 
 type Card struct {
-	Number string
-	PIN    string
+	Number  string
+	PIN     string
+	Balance int
 }
 
 type BankingSystem struct {
@@ -103,9 +104,13 @@ func (bs *BankingSystem) HandleMainMenuOperations() bool {
 		case 1:
 			bs.CreateAccount()
 		case 2:
-			if bs.Login() {
-				fmt.Println("\n" + GoodbyeMsg)
-				return true
+			loggedInCard := bs.Login()
+			if loggedInCard != nil {
+				exit := bs.HandleAccountOperations(loggedInCard)
+				if exit {
+					fmt.Println("\n" + GoodbyeMsg)
+					return true
+				}
 			}
 		case 0:
 			fmt.Println("\n" + GoodbyeMsg)
@@ -124,7 +129,7 @@ func (*BankingSystem) DisplayMainMenu() {
 
 func (bs *BankingSystem) CreateAccount() {
 	cardNumber, pin := bs.GenerateCardNumberAndPIN()
-	bs.Cards = append(bs.Cards, Card{cardNumber, pin})
+	bs.Cards = append(bs.Cards, Card{cardNumber, pin, 0})
 
 	fmt.Println("\n" + CardCreatedMsg)
 	fmt.Printf(CardNumberMsg, cardNumber)
@@ -145,7 +150,7 @@ func generateRandomDigits(n int) string {
 	return fmt.Sprintf("%0*d", n, rand.Intn(maxNumber))
 }
 
-func (bs *BankingSystem) PromptLoginCredentials() (string, string) {
+func (*BankingSystem) PromptLoginCredentials() (string, string) {
 	fmt.Println("\n" + CardNumberPrompt)
 	var cardNumber string
 	fmt.Scanln(&cardNumber)
@@ -157,21 +162,21 @@ func (bs *BankingSystem) PromptLoginCredentials() (string, string) {
 	return cardNumber, pin
 }
 
-func (bs *BankingSystem) Login() bool {
+func (bs *BankingSystem) Login() *Card {
 	cardNumber, pin := bs.PromptLoginCredentials()
 
 	for _, c := range bs.Cards {
 		if c.Number == cardNumber && c.PIN == pin {
 			fmt.Println("\n" + LoggedInMsg)
-			return bs.HandleAccountOperations()
+			return &c
 		}
 	}
 
 	fmt.Println("\n" + WrongCredentialsMsg)
-	return false
+	return nil
 }
 
-func (bs *BankingSystem) HandleAccountOperations() bool {
+func (bs *BankingSystem) HandleAccountOperations(card *Card) bool {
 	for {
 		bs.DisplayAccountOperationsMenu()
 
@@ -180,7 +185,7 @@ func (bs *BankingSystem) HandleAccountOperations() bool {
 
 		switch choice {
 		case 1:
-			fmt.Printf("\n"+BalanceMsg+"\n", 0)
+			fmt.Printf("\n"+BalanceMsg+"\n", card.Balance)
 		case 2:
 			fmt.Println("\n" + LoggedOutMsg)
 			return false

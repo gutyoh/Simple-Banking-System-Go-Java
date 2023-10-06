@@ -9,6 +9,7 @@ package main
 */
 
 import (
+	"flag"
 	"fmt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -16,9 +17,6 @@ import (
 	"math"
 	"math/rand"
 )
-
-// DatabaseName is the name of the database file
-const DatabaseName = "card.s3db"
 
 // Main menu options
 const (
@@ -102,6 +100,18 @@ func generateLuhnChecksumDigit(number string) int {
 	return (10 - (sum % 10)) % 10
 }
 
+func parseArguments() (string, error) {
+	var databaseFileName string
+	flag.StringVar(&databaseFileName, "fileName", "", "Path to the SQLite database file")
+	flag.Parse()
+
+	if databaseFileName == "" {
+		return "", fmt.Errorf("the `-fileName` argument is required")
+	}
+
+	return databaseFileName, nil
+}
+
 type Card struct {
 	ID      uint   `gorm:"primaryKey"`
 	Number  string `gorm:"unique;not null"`
@@ -135,9 +145,13 @@ func (bs *BankingSystem) HandleMainMenuOperations() bool {
 		case 1:
 			bs.CreateAccount()
 		case 2:
-			if bs.Login() {
-				fmt.Println("\n" + GoodbyeMsg)
-				return true
+			loggedInCard := bs.Login()
+			if loggedInCard != nil {
+				exit := bs.HandleAccountOperations(loggedInCard)
+				if exit {
+					fmt.Println("\n" + GoodbyeMsg)
+					return true
+				}
 			}
 		case 0:
 			fmt.Println("\n" + GoodbyeMsg)
@@ -158,14 +172,11 @@ func (bs *BankingSystem) CreateAccount() {
 	cardNumber, pin := bs.GenerateCardNumberAndPIN()
 	card := Card{Number: cardNumber, PIN: pin}
 
-	tx := bs.db.Begin()
-	result := tx.Create(&card)
+	result := bs.db.Create(&card)
 	if result.Error != nil {
 		log.Printf("cannot create card: %v\n", result.Error)
-		tx.Rollback()
 		return
 	}
-	tx.Commit()
 
 	fmt.Println("\n" + CardCreatedMsg)
 	fmt.Printf(CardNumberMsg, cardNumber)
@@ -186,7 +197,7 @@ func generateRandomDigits(n int) string {
 	return fmt.Sprintf("%0*d", n, rand.Intn(maxNumber))
 }
 
-func (bs *BankingSystem) PromptLoginCredentials() (string, string) {
+func (*BankingSystem) PromptLoginCredentials() (string, string) {
 	fmt.Println("\n" + CardNumberPrompt)
 	var cardNumber string
 	fmt.Scanln(&cardNumber)
@@ -198,20 +209,18 @@ func (bs *BankingSystem) PromptLoginCredentials() (string, string) {
 	return cardNumber, pin
 }
 
-func (bs *BankingSystem) Login() bool {
+func (bs *BankingSystem) Login() *Card {
 	cardNumber, pin := bs.PromptLoginCredentials()
 
 	var card Card
 	result := bs.db.Where("number = ? AND pin = ?", cardNumber, pin).First(&card)
 	if result.Error != nil {
 		fmt.Println("\n" + WrongCredentialsMsg)
-		return false
+		return nil
 	}
 
 	fmt.Println("\n" + LoggedInMsg)
-	exit := bs.HandleAccountOperations(&card)
-
-	return exit
+	return &card
 }
 
 func (bs *BankingSystem) HandleAccountOperations(card *Card) bool {
@@ -257,14 +266,11 @@ func (bs *BankingSystem) AddIncome(card *Card) {
 
 	card.Balance += income
 
-	tx := bs.db.Begin()
-	result := tx.Save(&card)
+	result := bs.db.Save(&card)
 	if result.Error != nil {
 		log.Printf("cannot update balance: %v\n", result.Error)
-		tx.Rollback()
 		return
 	}
-	tx.Commit()
 
 	fmt.Println(IncomeAddedMsg)
 }
@@ -272,7 +278,9 @@ func (bs *BankingSystem) AddIncome(card *Card) {
 func (bs *BankingSystem) InitiateTransfer(senderCard *Card) {
 	recipientCardNumber := bs.PromptForRecipientCardNumber()
 
-	if !bs.CanTransferBetweenCards(senderCard, recipientCardNumber) {
+	reason, canTransfer := bs.CanTransferBetweenCards(senderCard, recipientCardNumber)
+	if !canTransfer {
+		fmt.Println(reason)
 		return
 	}
 
@@ -302,10 +310,9 @@ func (*BankingSystem) PromptForRecipientCardNumber() string {
 	return recipientCardNumber
 }
 
-func (*BankingSystem) CanTransferBetweenCards(senderCard *Card, recipientCardNumber string) bool {
+func (*BankingSystem) CanTransferBetweenCards(senderCard *Card, recipientCardNumber string) (string, bool) {
 	if senderCard.Number == recipientCardNumber {
-		fmt.Println(TransferToSameAccountMsg)
-		return false
+		return TransferToSameAccountMsg, false
 	}
 
 	base := recipientCardNumber[:len(recipientCardNumber)-1]
@@ -313,30 +320,42 @@ func (*BankingSystem) CanTransferBetweenCards(senderCard *Card, recipientCardNum
 	calculatedCheckDigit := generateLuhnChecksumDigit(base)
 
 	if checkDigit != calculatedCheckDigit {
-		fmt.Println(TransferToInvalidAccountMsg)
-		return false
+		return TransferToInvalidAccountMsg, false
 	}
 
-	return true
+	return "", true
 }
 
 func (bs *BankingSystem) ExecuteTransfer(sender *Card, recipient *Card, amount int) bool {
 	tx := bs.db.Begin()
-	result := tx.Model(sender).Update("balance", gorm.Expr("balance - ?", amount))
-	if result.Error != nil {
-		log.Printf("cannot update sender balance: %v\n", result.Error)
+
+	result := tx.Model(&Card{}).
+		Where("number = ? AND balance >= ?", sender.Number, amount).
+		Update("balance", gorm.Expr("balance - ?", amount))
+	if result.RowsAffected == 0 {
+		if result.Error != nil {
+			log.Printf("cannot update sender balance: %v\n", result.Error)
+		} else {
+			log.Printf("insufficient balance or sender not found. sender: %v, amount: %v\n", sender, amount)
+		}
 		tx.Rollback()
 		return false
 	}
 
-	result = tx.Model(recipient).Update("balance", gorm.Expr("balance + ?", amount))
-	if result.Error != nil {
-		log.Printf("cannot update recipient balance: %v\n", result.Error)
+	result = tx.Model(&Card{}).
+		Where("number = ?", recipient.Number).
+		Update("balance", gorm.Expr("balance + ?", amount))
+	if result.RowsAffected == 0 {
+		if result.Error != nil {
+			log.Printf("cannot update recipient balance: %v\n", result.Error)
+		} else {
+			log.Printf("recipient not found. recipient: %v\n", recipient)
+		}
 		tx.Rollback()
 		return false
 	}
+
 	tx.Commit()
-
 	return true
 }
 
@@ -357,14 +376,11 @@ func (*BankingSystem) PromptForTransferAmount() int {
 }
 
 func (bs *BankingSystem) CloseAccount(card *Card) {
-	tx := bs.db.Begin()
-	result := tx.Delete(&card)
+	result := bs.db.Delete(&card)
 	if result.Error != nil {
 		fmt.Printf("cannot delete card: %v\n", result.Error)
-		tx.Rollback()
 		return
 	}
-	tx.Commit()
 
 	fmt.Println(CloseAccountMsg)
 }
@@ -383,9 +399,14 @@ func NewBankingSystem(db *gorm.DB) (*BankingSystem, error) {
 }
 
 func main() {
-	db, err := gorm.Open(sqlite.Open(DatabaseName), &gorm.Config{})
+	databaseFileName, err := parseArguments()
 	if err != nil {
-		log.Fatalf("failed to open %s: %v", DatabaseName, err)
+		log.Fatalf("error parsing arguments: %v", err)
+	}
+
+	db, err := gorm.Open(sqlite.Open(databaseFileName), &gorm.Config{})
+	if err != nil {
+		log.Fatalf("failed to open %s: %v", databaseFileName, err)
 	}
 
 	bs, err := NewBankingSystem(db)

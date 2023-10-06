@@ -79,9 +79,13 @@ func handleMainMenuOperations(cards map[string]string) bool {
 		case 1:
 			createAccount(cards)
 		case 2:
-			if login(cards) {
-				fmt.Println("\n" + GoodbyeMsg)
-				return true
+			loggedInCard := login(cards)
+			if loggedInCard != nil {
+				exit := handleAccountOperations(loggedInCard)
+				if exit {
+					fmt.Println("\n" + GoodbyeMsg)
+					return true
+				}
 			}
 		case 0:
 			fmt.Println("\n" + GoodbyeMsg)
@@ -130,19 +134,19 @@ func promptLoginCredentials() (string, string) {
 	return cardNumber, pin
 }
 
-func login(cards map[string]string) bool {
+func login(cards map[string]string) map[string]string {
 	cardNumber, pin := promptLoginCredentials()
 
 	if storedPin, exists := cards[cardNumber]; exists && storedPin == pin {
 		fmt.Println("\n" + LoggedInMsg)
-		return handleAccountOperations()
+		return cards
 	}
 
 	fmt.Println("\n" + WrongCredentialsMsg)
-	return false
+	return nil
 }
 
-func handleAccountOperations() bool {
+func handleAccountOperations(cards map[string]string) bool {
 	for {
 		displayAccountOperationsMenu()
 

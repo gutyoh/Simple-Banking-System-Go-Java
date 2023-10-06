@@ -4,6 +4,7 @@ package main
 [Simple Banking System - Stage 3/4: I'm so lite](https://hyperskill.org/projects/93/stages/517/implement)
 -------------------------------------------------------------------------------
 [Errors](https://hyperskill.org/learn/step/16774)
+[Command-line arguments and flags](https://hyperskill.org/learn/step/17863)
 [Declaring GORM Models](https://hyperskill.org/learn/step/28639)
 [Migrations](https://hyperskill.org/learn/step/22043)
 [CRUD Operations — Create](https://hyperskill.org/learn/step/22859)
@@ -11,6 +12,7 @@ package main
 */
 
 import (
+	"flag"
 	"fmt"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -18,9 +20,6 @@ import (
 	"math"
 	"math/rand"
 )
-
-// DatabaseName is the name of the database file
-const DatabaseName = "card.s3db"
 
 // Main menu options
 const (
@@ -82,6 +81,18 @@ func generateLuhnChecksumDigit(number string) int {
 	return (10 - (sum % 10)) % 10
 }
 
+func parseArguments() (string, error) {
+	var databaseFileName string
+	flag.StringVar(&databaseFileName, "fileName", "", "Path to the SQLite database file")
+	flag.Parse()
+
+	if databaseFileName == "" {
+		return "", fmt.Errorf("the `-fileName` argument is required")
+	}
+
+	return databaseFileName, nil
+}
+
 type Card struct {
 	ID      uint   `gorm:"primaryKey"`
 	Number  string `gorm:"unique;not null"`
@@ -115,9 +126,13 @@ func (bs *BankingSystem) HandleMainMenuOperations() bool {
 		case 1:
 			bs.CreateAccount()
 		case 2:
-			if bs.Login() {
-				fmt.Println("\n" + GoodbyeMsg)
-				return true
+			loggedInCard := bs.Login()
+			if loggedInCard != nil {
+				exit := bs.HandleAccountOperations(loggedInCard)
+				if exit {
+					fmt.Println("\n" + GoodbyeMsg)
+					return true
+				}
 			}
 		case 0:
 			fmt.Println("\n" + GoodbyeMsg)
@@ -162,7 +177,7 @@ func generateRandomDigits(n int) string {
 	return fmt.Sprintf("%0*d", n, rand.Intn(maxNumber))
 }
 
-func (bs *BankingSystem) PromptLoginCredentials() (string, string) {
+func (*BankingSystem) PromptLoginCredentials() (string, string) {
 	fmt.Println("\n" + CardNumberPrompt)
 	var cardNumber string
 	fmt.Scanln(&cardNumber)
@@ -174,23 +189,21 @@ func (bs *BankingSystem) PromptLoginCredentials() (string, string) {
 	return cardNumber, pin
 }
 
-func (bs *BankingSystem) Login() bool {
+func (bs *BankingSystem) Login() *Card {
 	cardNumber, pin := bs.PromptLoginCredentials()
 
 	var card Card
 	result := bs.db.Where("number = ? AND pin = ?", cardNumber, pin).First(&card)
 	if result.Error != nil {
 		fmt.Println("\n" + WrongCredentialsMsg)
-		return false
+		return nil
 	}
 
 	fmt.Println("\n" + LoggedInMsg)
-	exit := bs.HandleAccountOperations()
-
-	return exit
+	return &card
 }
 
-func (bs *BankingSystem) HandleAccountOperations() bool {
+func (bs *BankingSystem) HandleAccountOperations(card *Card) bool {
 	for {
 		bs.DisplayAccountOperationsMenu()
 
@@ -199,7 +212,7 @@ func (bs *BankingSystem) HandleAccountOperations() bool {
 
 		switch choice {
 		case 1:
-			fmt.Printf("\n"+BalanceMsg+"\n", 0)
+			fmt.Printf("\n"+BalanceMsg+"\n", card.Balance)
 		case 2:
 			fmt.Println("\n" + LoggedOutMsg)
 			return false
@@ -231,9 +244,14 @@ func NewBankingSystem(db *gorm.DB) (*BankingSystem, error) {
 }
 
 func main() {
-	db, err := gorm.Open(sqlite.Open(DatabaseName), &gorm.Config{})
+	databaseFileName, err := parseArguments()
 	if err != nil {
-		log.Fatalf("failed to open %s: %v", DatabaseName, err)
+		log.Fatalf("error parsing arguments: %v", err)
+	}
+
+	db, err := gorm.Open(sqlite.Open(databaseFileName), &gorm.Config{})
+	if err != nil {
+		log.Fatalf("failed to open %s: %v", databaseFileName, err)
 	}
 
 	bs, err := NewBankingSystem(db)
