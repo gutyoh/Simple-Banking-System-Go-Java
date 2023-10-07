@@ -15,9 +15,7 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -26,6 +24,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
     private static final String databaseFileName = "card.s3db";
     private static final String tempDatabaseFileName = "tempDatabase.s3db";
     private static final String[] args = {"-fileName", databaseFileName};
+    private static final String tableName = "cards";
     private static final Map<String, String> correctData = new HashMap<>();
 
     private static final Pattern cardNumberPattern = Pattern.compile("^400000\\d{10}$", Pattern.MULTILINE);
@@ -74,20 +73,26 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         stopAndCheckIfUserProgramWasStopped(program);
 
+        List<String> tableNames = new ArrayList<>();
+
         try {
             ResultSet resultSet = getConnection().createStatement().executeQuery(
-                "SELECT name FROM sqlite_master WHERE type ='table' AND name NOT LIKE 'sqlite_%';");
+                    "SELECT name FROM sqlite_master WHERE type ='table' AND name NOT LIKE 'sqlite_%';");
             while (resultSet.next()) {
-                if (resultSet.getString("name").equals("card")) {
-                    return CheckResult.correct();
-                }
+                tableNames.add(resultSet.getString("name"));
+            }
+
+            if (tableNames.contains(tableName)) {
+                closeConnection();
+                return CheckResult.correct();
             }
         } catch (SQLException e) {
+            closeConnection();
             return CheckResult.wrong("Can't execute a query in your database! Make sure that your database isn't broken and you close your connection at the end of the program!");
         }
 
         closeConnection();
-        return CheckResult.wrong("Your database doesn't have a table named 'card'");
+        return CheckResult.wrong("Your database doesn't have a table named " + tableName + "!\nFound tables: " + String.join(", ", tableNames));
     }
 
     @DynamicTest
@@ -100,7 +105,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         try {
 
-            ResultSet resultSet = getConnection().createStatement().executeQuery("PRAGMA table_info(card);");
+            ResultSet resultSet = getConnection().createStatement().executeQuery("PRAGMA table_info(" + tableName + ");");
             Map<String, String> columns = new HashMap<>();
 
             while (resultSet.next()) {
@@ -179,7 +184,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         try {
 
-            ResultSet resultSet = getConnection().createStatement().executeQuery("SELECT * FROM card");
+            ResultSet resultSet = getConnection().createStatement().executeQuery("SELECT * FROM " + tableName + ";");
             Map<String, String> userData = new HashMap<>();
 
             while (resultSet.next()) {
@@ -456,7 +461,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
     private void deleteAllRows() {
         try {
-            getConnection().createStatement().execute("DELETE FROM card");
+            getConnection().createStatement().execute("DELETE FROM " + tableName + ";");
             closeConnection();
         } catch (SQLException exception) {
             throw new WrongAnswer("Can't execute a query in your database! Make sure that your database isn't broken and you close your connection at the end of the program!");

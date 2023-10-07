@@ -12,9 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Random;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -23,6 +21,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
     private static final String databaseFileName = "card.s3db";
     private static final String tempDatabaseFileName = "tempDatabase.s3db";
     private static final String[] args = {"-fileName", databaseFileName};
+    private static final String tableName = "cards";
     private static final Map<String, String> correctData = new HashMap<>();
 
     private static final Pattern cardNumberPattern = Pattern.compile("^400000\\d{10}$", Pattern.MULTILINE);
@@ -48,8 +47,8 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         if (!file.exists()) {
             return CheckResult.wrong("You should create a database file " +
-                "named " + databaseFileName + ". The file name should be taken from the command line arguments.\n" +
-                "The database file shouldn't be deleted after stopping the program!");
+                    "named " + databaseFileName + ". The file name should be taken from the command line arguments.\n" +
+                    "The database file shouldn't be deleted after stopping the program!");
         }
 
         return CheckResult.correct();
@@ -77,14 +76,18 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         stopAndCheckIfUserProgramWasStopped(program);
 
+        List<String> tableNames = new ArrayList<>();
+
         try {
             ResultSet resultSet = getConnection().createStatement().executeQuery(
-                "SELECT name FROM sqlite_master WHERE type ='table' AND name NOT LIKE 'sqlite_%';");
+                    "SELECT name FROM sqlite_master WHERE type ='table' AND name NOT LIKE 'sqlite_%';");
             while (resultSet.next()) {
-                if (resultSet.getString("name").equals("card")) {
-                    closeConnection();
-                    return CheckResult.correct();
-                }
+                tableNames.add(resultSet.getString("name"));
+            }
+
+            if (tableNames.contains(tableName)) {
+                closeConnection();
+                return CheckResult.correct();
             }
         } catch (SQLException e) {
             closeConnection();
@@ -92,8 +95,9 @@ public class SimpleBankSystemTest extends StageTest<String> {
         }
 
         closeConnection();
-        return CheckResult.wrong("Your database doesn't have a table named 'card'");
+        return CheckResult.wrong("Your database doesn't have a table named " + tableName + "!\nFound tables: " + String.join(", ", tableNames));
     }
+
 
     @DynamicTest
     CheckResult test4_checkColumns() {
@@ -105,7 +109,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         try {
 
-            ResultSet resultSet = getConnection().createStatement().executeQuery("PRAGMA table_info(card);");
+            ResultSet resultSet = getConnection().createStatement().executeQuery("PRAGMA table_info(" + tableName + ");");
             Map<String, String> columns = new HashMap<>();
 
             while (resultSet.next()) {
@@ -113,15 +117,15 @@ public class SimpleBankSystemTest extends StageTest<String> {
             }
 
             String[][] correctColumns = {
-                {"id", "INTEGER", "INT"},
-                {"number", "TEXT", "VARCHAR"},
-                {"pin", "TEXT", "VARCHAR"},
-                {"balance", "INTEGER", "INT"}};
+                    {"id", "INTEGER", "INT"},
+                    {"number", "TEXT", "VARCHAR"},
+                    {"pin", "TEXT", "VARCHAR"},
+                    {"balance", "INTEGER", "INT"}};
 
             for (String[] correctColumn : correctColumns) {
                 String errorMessage = "Can't find '" + correctColumn[0] + "' column with '" + correctColumn[1] + "' type.\n" +
-                    "Your table should have columns described in " +
-                    "the stage instructions.";
+                        "Your table should have columns described in " +
+                        "the stage instructions.";
                 if (!columns.containsKey(correctColumn[0])) {
                     return CheckResult.wrong(errorMessage);
                 } else if (!columns.get(correctColumn[0]).contains(correctColumn[1]) && !columns.get(correctColumn[0]).contains(correctColumn[2])) {
@@ -149,42 +153,42 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         if (!getData(output)) {
             return CheckResult.wrong("You should output card number and PIN like in example\n" +
-                "Or it doesn't pass the Luhn algorithm");
+                    "Or it doesn't pass the Luhn algorithm");
         }
 
         output = program.execute("1");
 
         if (!getData(output)) {
             return CheckResult.wrong("You should output card number and PIN like in example\n" +
-                "Or it doesn't pass the Luhn algorithm");
+                    "Or it doesn't pass the Luhn algorithm");
         }
 
         output = program.execute("1");
 
         if (!getData(output)) {
             return CheckResult.wrong("You should output card number and PIN like in example\n" +
-                "Or it doesn't pass the Luhn algorithm");
+                    "Or it doesn't pass the Luhn algorithm");
         }
 
         output = program.execute("1");
 
         if (!getData(output)) {
             return CheckResult.wrong("You should output card number and PIN like in example\n" +
-                "Or it doesn't pass the Luhn algorithm");
+                    "Or it doesn't pass the Luhn algorithm");
         }
 
         output = program.execute("1");
 
         if (!getData(output)) {
             return CheckResult.wrong("You should output card number and PIN like in example\n" +
-                "Or it doesn't pass the Luhn algorithm");
+                    "Or it doesn't pass the Luhn algorithm");
         }
 
         stopAndCheckIfUserProgramWasStopped(program);
 
         try {
 
-            ResultSet resultSet = getConnection().createStatement().executeQuery("SELECT * FROM card");
+            ResultSet resultSet = getConnection().createStatement().executeQuery("SELECT * FROM " + tableName + ";");
             Map<String, String> userData = new HashMap<>();
 
             while (resultSet.next()) {
@@ -206,7 +210,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
                     return CheckResult.wrong("Your database doesn't save newly created cards.");
                 } else if (!userData.get(entry.getKey()).equals(entry.getValue())) {
                     return CheckResult.wrong("Correct PIN for card number " + entry.getKey() + " should " +
-                        "be " + entry.getValue());
+                            "be " + entry.getValue());
                 }
             }
 
@@ -231,15 +235,15 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         if (!cardNumberMatcher.find()) {
             return CheckResult.wrong("You are printing the card number " +
-                "incorrectly. The card number should look like in the example:" +
-                " 400000DDDDDDDDDD, where D is a digit.");
+                    "incorrectly. The card number should look like in the example:" +
+                    " 400000DDDDDDDDDD, where D is a digit.");
         }
 
         Matcher pinMatcher = pinPattern.matcher(output);
 
         if (!pinMatcher.find()) {
             return CheckResult.wrong("You are printing the card PIN " +
-                "incorrectly. The PIN should look like in the example: DDDD, where D is a digit.");
+                    "incorrectly. The PIN should look like in the example: DDDD, where D is a digit.");
         }
 
         String correctPin = pinMatcher.group().trim();
@@ -250,7 +254,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         if (!output.toLowerCase().contains("successfully")) {
             return CheckResult.wrong("The user should be signed in after" +
-                " entering the correct card information.");
+                    " entering the correct card information.");
         }
 
         stopAndCheckIfUserProgramWasStopped(program);
@@ -289,7 +293,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         if (output.toLowerCase().contains("successfully")) {
             return CheckResult.wrong("The user should not be signed in" +
-                " after entering incorrect card information.");
+                    " after entering incorrect card information.");
         }
 
         stopAndCheckIfUserProgramWasStopped(program);
@@ -327,7 +331,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         if (output.toLowerCase().contains("successfully")) {
             return CheckResult.wrong("The user should not be signed in" +
-                " after entering incorrect card information.");
+                    " after entering incorrect card information.");
         }
 
         stopAndCheckIfUserProgramWasStopped(program);
@@ -430,7 +434,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         if (!cardNumberMatcher.find()) {
             return new CheckResult(false, "Your program outputs card number " +
-                "wrong.\nCard number should look like 400000DDDDDDDDDD. Where D is some digit");
+                    "wrong.\nCard number should look like 400000DDDDDDDDDD. Where D is some digit");
         }
 
         String toTransferCardNumber = cardNumberMatcher.group();
@@ -453,23 +457,23 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
         if (!output.contains("mistake")) {
             return new CheckResult(false, "You should not allow to transfer " +
-                "to a card number that doesn't pass the Luhn algorithm.\n You should print " +
-                "'Probably you made mistake in the card number. Please try again!'");
+                    "to a card number that doesn't pass the Luhn algorithm.\n You should print " +
+                    "'Probably you made mistake in the card number. Please try again!'");
         }
 
         output = program.execute("3\n" + notExistingCardNumber);
 
         if (!output.contains("exist")) {
             return new CheckResult(false, "You should not allow to transfer " +
-                "to a card number that does not exist.\nYou should print " +
-                "'Such a card does not exist.'");
+                    "to a card number that does not exist.\nYou should print " +
+                    "'Such a card does not exist.'");
         }
 
         output = program.execute("3\n" + toTransferCardNumber + "\n100000");
         if (!output.toLowerCase().contains("not enough money")) {
             return new CheckResult(false, "You should not allow a transfer if " +
-                "there is not enough money in the account to complete it. You should print " +
-                "'Not enough money!'");
+                    "there is not enough money in the account to complete it. You should print " +
+                    "'Not enough money!'");
         }
 
         program.execute("2\n20000\n3\n" + toTransferCardNumber + "\n10000");
@@ -517,12 +521,26 @@ public class SimpleBankSystemTest extends StageTest<String> {
         stopAndCheckIfUserProgramWasStopped(program);
 
         try {
-            PreparedStatement statement = getConnection().prepareStatement("SELECT * FROM card where number = ?");
-            statement.setString(1, correctCardNumber);
-            ResultSet resultSet = statement.executeQuery();
-            if (resultSet.next()) {
-                return new CheckResult(false, "After closing the account, the card should be deleted " +
-                    "from the database.");
+            DatabaseMetaData dbm = getConnection().getMetaData();
+            ResultSet tables = dbm.getColumns(null, null, tableName, "deleted_at");
+            if (tables.next()) {
+                // The GORM `deleted_at` column exists, so use the query with the `deleted_at` condition
+                PreparedStatement statement = getConnection().prepareStatement("SELECT * FROM " + tableName + " where number = ? AND (deleted_at IS NULL OR deleted_at = '')");
+                statement.setString(1, correctCardNumber);
+                ResultSet resultSet = statement.executeQuery();
+                if (resultSet.next()) {
+                    return new CheckResult(false, "After closing the account, the card should be deleted " +
+                            "from the database.");
+                }
+            } else {
+                // The GORM `deleted_at` column does NOT exist, so use a straightforward existence check
+                PreparedStatement statement = getConnection().prepareStatement("SELECT * FROM " + tableName + " where number = ?");
+                statement.setString(1, correctCardNumber);
+                ResultSet resultSet = statement.executeQuery();
+                if (resultSet.next()) {
+                    return new CheckResult(false, "After closing the account, the card should be deleted " +
+                            "from the database.");
+                }
             }
         } catch (SQLException e) {
             throw new WrongAnswer("Can't execute a query in your database! Make sure that your database isn't broken and you close your connection at the end of the program!");
@@ -538,7 +556,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
                 connection = DriverManager.getConnection("jdbc:sqlite:" + databaseFileName);
             } catch (SQLException exception) {
                 throw new WrongAnswer("Can't connect to the database! Make sure you close your database" +
-                    " connection at the end of the program!");
+                        " connection at the end of the program!");
             }
         }
         return connection;
@@ -630,7 +648,7 @@ public class SimpleBankSystemTest extends StageTest<String> {
 
     private void deleteAllRows() {
         try {
-            getConnection().createStatement().execute("DELETE FROM card");
+            getConnection().createStatement().execute("DELETE FROM " + tableName + ";");
             closeConnection();
         } catch (SQLException exception) {
             throw new WrongAnswer("Can't execute a query in your database! Make sure that your database isn't broken and you close your connection at the end of the program!");
@@ -641,13 +659,14 @@ public class SimpleBankSystemTest extends StageTest<String> {
         program.execute("0");
         if (!program.isFinished()) {
             throw new WrongAnswer("After choosing 'Exit' item you should stop your program" +
-                " and close database connection!");
+                    " and close database connection!");
         }
     }
 
     private static int getBalance(String cardNumber) {
         try {
-            PreparedStatement preparedStatement = getConnection().prepareStatement("SELECT * FROM card WHERE number = ?");
+            PreparedStatement preparedStatement = getConnection().prepareStatement("SELECT * FROM " + tableName + " WHERE number = ?");
+
             preparedStatement.setString(1, cardNumber);
             ResultSet resultSet = preparedStatement.executeQuery();
             resultSet.next();

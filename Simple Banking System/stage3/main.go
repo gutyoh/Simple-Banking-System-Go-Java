@@ -21,6 +21,12 @@ import (
 	"math/rand"
 )
 
+// Table name and card number prefix
+const (
+	TableName  = "cards"
+	CardPrefix = "400000"
+)
+
 // Main menu options
 const (
 	MainMenuCreateAccount = "1. Create an account"
@@ -54,12 +60,10 @@ const (
 	LoggedInMsg         = "You have successfully logged in!"
 	LoggedOutMsg        = "You have successfully logged out!"
 	GoodbyeMsg          = "Bye!"
-
-	CardPrefix     = "400000"
-	CardCreatedMsg = "Your card has been created"
-	CardNumberMsg  = "Your card number:\n%s\n"
-	CardPINMsg     = "Your card PIN:\n%s\n\n"
-	BalanceMsg     = "Balance: %d"
+	CardCreatedMsg      = "Your card has been created"
+	CardNumberMsg       = "Your card number:\n%s\n"
+	CardPINMsg          = "Your card PIN:\n%s\n\n"
+	BalanceMsg          = "Balance: %d"
 )
 
 func generateLuhnChecksumDigit(number string) int {
@@ -93,16 +97,13 @@ func parseArguments() (string, error) {
 	return databaseFileName, nil
 }
 
+// The updated tests support both gorm.Model and non-gorm.Model structs, so you can use either one:
 type Card struct {
 	gorm.Model
 	// ID      uint   `gorm:"primaryKey"`
 	Number  string `gorm:"unique;not null"`
 	PIN     string
 	Balance int `gorm:"default:0"`
-}
-
-func (Card) TableName() string {
-	return "card"
 }
 
 type BankingSystem struct {
@@ -235,7 +236,7 @@ func NewBankingSystem(db *gorm.DB) (*BankingSystem, error) {
 	if !db.Migrator().HasTable(&Card{}) {
 		err := db.Migrator().CreateTable(&Card{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to create `card` table: %w", err)
+			return nil, fmt.Errorf("failed to create %s table: %v", TableName, err)
 		}
 	}
 

@@ -3,11 +3,11 @@ custom_name: stage3
 files:
   - name: test/SimpleBankSystemTest.java
     visible: false
-  - name: go.mod
-    visible: true
   - name: go.sum
     visible: true
   - name: main.go
+    visible: true
+  - name: go.mod
     visible: true
   - name: card.s3db
     visible: true

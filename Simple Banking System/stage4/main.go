@@ -18,6 +18,12 @@ import (
 	"math/rand"
 )
 
+// Table name and card number prefix
+const (
+	TableName  = "cards"
+	CardPrefix = "400000"
+)
+
 // Main menu options
 const (
 	MainMenuCreateAccount = "1. Create an account"
@@ -55,7 +61,6 @@ const (
 	LoggedOutMsg        = "You have successfully logged out!"
 	GoodbyeMsg          = "Bye!"
 
-	CardPrefix      = "400000"
 	CardCreatedMsg  = "Your card has been created"
 	CardNumberMsg   = "Your card number:\n%s\n"
 	CardPINMsg      = "Your card PIN:\n%s\n\n"
@@ -112,16 +117,13 @@ func parseArguments() (string, error) {
 	return databaseFileName, nil
 }
 
+// The updated tests support both gorm.Model and non-gorm.Model structs, so you can use either one:
 type Card struct {
 	gorm.Model
 	// ID      uint   `gorm:"primaryKey"`
 	Number  string `gorm:"unique;not null"`
 	PIN     string
 	Balance int `gorm:"default:0"`
-}
-
-func (Card) TableName() string {
-	return "card"
 }
 
 type BankingSystem struct {
@@ -327,6 +329,22 @@ func (*BankingSystem) CanTransferBetweenCards(senderCard *Card, recipientCardNum
 	return "", true
 }
 
+func (bs *BankingSystem) GetCard(cardNumber string) (*Card, error) {
+	var card Card
+	result := bs.db.Where("number = ?", cardNumber).First(&card)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	return &card, nil
+}
+
+func (*BankingSystem) PromptForTransferAmount() int {
+	fmt.Println(TransferAmountPrompt)
+	var amount int
+	fmt.Scanln(&amount)
+	return amount
+}
+
 func (bs *BankingSystem) ExecuteTransfer(sender *Card, recipient *Card, amount int) bool {
 	tx := bs.db.Begin()
 
@@ -360,29 +378,9 @@ func (bs *BankingSystem) ExecuteTransfer(sender *Card, recipient *Card, amount i
 	return true
 }
 
-func (bs *BankingSystem) GetCard(cardNumber string) (*Card, error) {
-	var card Card
-	result := bs.db.Where("number = ?", cardNumber).First(&card)
-	if result.Error != nil {
-		return nil, result.Error
-	}
-	return &card, nil
-}
-
-func (*BankingSystem) PromptForTransferAmount() int {
-	fmt.Println(TransferAmountPrompt)
-	var amount int
-	fmt.Scanln(&amount)
-	return amount
-}
-
 func (bs *BankingSystem) CloseAccount(card *Card) {
-	// Only use `Delete()` directly if your `Card` is not a `gorm.Model` struct!
-	// result := bs.db.Delete(&card)
-
-	// If using a `gorm.Model` struct, please use `Unscoped().Delete()` to ensure
-	// that the `Card` record is completely deleted from the database, otherwise tests will fail.
-	result := bs.db.Unscoped().Delete(&card)
+	// The updated tests support both `Delete()` and `Unscoped().Delete()`, so you can use either one:
+	result := bs.db.Delete(&card)
 	if result.Error != nil {
 		fmt.Printf("cannot delete card: %v\n", result.Error)
 		return
@@ -395,7 +393,7 @@ func NewBankingSystem(db *gorm.DB) (*BankingSystem, error) {
 	if !db.Migrator().HasTable(&Card{}) {
 		err := db.Migrator().CreateTable(&Card{})
 		if err != nil {
-			return nil, fmt.Errorf("failed to create `card` table: %w", err)
+			return nil, fmt.Errorf("failed to create %s table: %v", TableName, err)
 		}
 	}
 
